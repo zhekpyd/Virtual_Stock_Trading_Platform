@@ -1,0 +1,9 @@
+{
+  "dependencies": [
+    "crow",
+    "nlohmann-json",
+    "fmt",
+    "sqlite3",
+    "curl"
+  ]
+}
