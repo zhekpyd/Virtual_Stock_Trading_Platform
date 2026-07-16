@@ -31,8 +31,7 @@ pipeline {
                             -Dsonar.projectKey=StockServer \
                             -Dsonar.sources=. \
                             -Dsonar.host.url=http://localhost:9000 \
-                            -Dsonar.login=admin \
-                            -Dsonar.password=admin
+                            -Dsonar.token=29ce2e132300afea164d3734a00611fbee771328
                     '''
                 }
                 echo '✅ SonarQube 扫描完成'
