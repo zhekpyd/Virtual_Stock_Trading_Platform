@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    environment {
+        SONAR_TOKEN = credentials('SONAR_TOKEN')
+    }
+
     stages {
         stage('拉取代码') {
             steps {
@@ -31,7 +35,7 @@ pipeline {
                             -Dsonar.projectKey=StockServer \
                             -Dsonar.sources=. \
                             -Dsonar.host.url=http://localhost:9000 \
-                            -Dsonar.token=29ce2e132300afea164d3734a00611fbee771328
+                            -Dsonar.token=${SONAR_TOKEN}
                     '''
                 }
                 echo '✅ SonarQube 扫描完成'
