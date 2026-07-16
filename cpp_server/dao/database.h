@@ -10,8 +10,10 @@ public:
     }
 
     bool initialize(const std::string& db_path) {
-        return sqlite3_open(db_path.c_str(), &db_) == SQLITE_OK;
-    }
+    if (sqlite3_open(db_path.c_str(), &db_) != SQLITE_OK) return false;
+    sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);  // ← 加这行
+    return true;
+}
 
     sqlite3* get() { return db_; }
 

@@ -1,58 +1,83 @@
 #include "utils/http_client.h"
-#include <windows.h>
-#include <winhttp.h>
 #include <string>
-#include <iostream>
 
-#pragma comment(lib, "winhttp.lib")
+#ifdef _WIN32
+    // ==================== Windows 版本 (WinInet) ====================
+    #include <windows.h>
+    #include <wininet.h>
+    #pragma comment(lib, "wininet.lib")
 
-std::string http_get(const std::string& url) {
-    std::string result;
+    std::string http_get(const std::string& url) {
+        std::string result;
 
-    // 解析 URL
-    std::wstring wurl(url.begin(), url.end());
-    URL_COMPONENTS uc = {0};
-    uc.dwStructSize = sizeof(uc);
+        URL_COMPONENTSA uc = { 0 };
+        uc.dwStructSize = sizeof(uc);
+        char host[256] = { 0 }, path[4096] = { 0 };
+        uc.lpszHostName = host;
+        uc.dwHostNameLength = 256;
+        uc.lpszUrlPath = path;
+        uc.dwUrlPathLength = 4096;
 
-    wchar_t host[256] = {0}, path[1024] = {0};
-    uc.lpszHostName = host;
-    uc.dwHostNameLength = 256;
-    uc.lpszUrlPath = path;
-    uc.dwUrlPathLength = 1024;
+        if (!InternetCrackUrlA(url.c_str(), 0, 0, &uc)) return "";
 
-    if (!WinHttpCrackUrl(wurl.c_str(), 0, 0, &uc)) return "";
+        HINTERNET session = InternetOpenA("Mozilla/5.0", INTERNET_OPEN_TYPE_DIRECT,
+                                           NULL, NULL, 0);
+        if (!session) return "";
 
-    HINTERNET session = WinHttpOpen(L"Mozilla/5.0",
-                                     WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-                                     WINHTTP_NO_PROXY_NAME,
-                                     WINHTTP_NO_PROXY_BYPASS, 0);
-    if (!session) return "";
+        HINTERNET conn = InternetConnectA(session, host, uc.nPort, NULL, NULL,
+                                           INTERNET_SERVICE_HTTP, 0, 0);
+        if (!conn) { InternetCloseHandle(session); return ""; }
 
-    HINTERNET connect = WinHttpConnect(session, host, uc.nPort, 0);
-    if (!connect) { WinHttpCloseHandle(session); return ""; }
+        DWORD flags = (uc.nScheme == INTERNET_SCHEME_HTTPS) ?
+                      INTERNET_FLAG_SECURE : 0;
 
-    DWORD flags = (uc.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0;
-    HINTERNET request = WinHttpOpenRequest(connect, L"GET", path, NULL,
-                                            WINHTTP_NO_REFERER,
-                                            WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
-    if (!request) { WinHttpCloseHandle(connect); WinHttpCloseHandle(session); return ""; }
+        HINTERNET req = HttpOpenRequestA(conn, "GET", path, NULL, NULL, NULL,
+                                          flags | INTERNET_FLAG_RELOAD, 0);
+        if (!req) { InternetCloseHandle(conn); InternetCloseHandle(session); return ""; }
 
-    WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
-    WinHttpReceiveResponse(request, NULL);
+        const char* headers = "Referer: https://finance.sina.com.cn\r\n";
+        HttpSendRequestA(req, headers, -1, NULL, 0);
 
-    DWORD size = 0, downloaded = 0;
-    do {
-        size = 0;
-        WinHttpQueryDataAvailable(request, &size);
-        if (size == 0) break;
-        char* buf = new char[size + 1];
-        WinHttpReadData(request, buf, size, &downloaded);
-        result.append(buf, downloaded);
-        delete[] buf;
-    } while (size > 0);
+        char buf[4096];
+        DWORD read = 0;
+        while (InternetReadFile(req, buf, sizeof(buf) - 1, &read) && read > 0) {
+            buf[read] = '\0';
+            result += buf;
+        }
 
-    WinHttpCloseHandle(request);
-    WinHttpCloseHandle(connect);
-    WinHttpCloseHandle(session);
-    return result;
-}
+        InternetCloseHandle(req);
+        InternetCloseHandle(conn);
+        InternetCloseHandle(session);
+        return result;
+    }
+
+#else
+    // ==================== Linux 版本 (libcurl) ====================
+    #include <curl/curl.h>
+
+    static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
+        ((std::string*)userp)->append((char*)contents, size * nmemb);
+        return size * nmemb;
+    }
+
+    std::string http_get(const std::string& url) {
+        std::string result;
+        CURL* curl = curl_easy_init();
+        if (!curl) return "";
+
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &result);
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+
+        struct curl_slist* headers = NULL;
+        headers = curl_slist_append(headers, "Referer: https://finance.sina.com.cn");
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+        curl_easy_perform(curl);
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+        return result;
+    }
+#endif

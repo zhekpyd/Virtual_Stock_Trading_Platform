@@ -13,4 +13,5 @@ struct Stock {
     double low_hist;
     int64_t volume;
     int64_t total_shares;
+    std::string code;
 };
