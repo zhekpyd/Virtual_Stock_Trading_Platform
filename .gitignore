@@ -1,6 +1,9 @@
 /cpp_server/build
 /cpp_server/output
 /cpp_server/build_linux
+/cpp_server/report
+/cpp_server/cppcheck_report.xml
+/cpp_server/cppcheck_result.txt
 /learn_1
 /learn_2
 /server
