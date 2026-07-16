@@ -1,0 +1,60 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('拉取代码') {
+            steps {
+                checkout scm
+                echo '✅ 代码已拉取'
+            }
+        }
+
+        stage('编译') {
+            steps {
+                dir('cpp_server') {
+                    sh '''
+                        rm -rf build_jenkins
+                        mkdir build_jenkins && cd build_jenkins
+                        cmake .. -DCMAKE_BUILD_TYPE=Release
+                        make -j$(nproc)
+                    '''
+                }
+                echo '✅ 编译成功'
+            }
+        }
+
+        stage('代码质量扫描') {
+            steps {
+                dir('cpp_server') {
+                    sh '''
+                        sonar-scanner \
+                            -Dsonar.projectKey=StockServer \
+                            -Dsonar.sources=. \
+                            -Dsonar.host.url=http://localhost:9000 \
+                            -Dsonar.login=admin \
+                            -Dsonar.password=admin
+                    '''
+                }
+                echo '✅ SonarQube 扫描完成'
+            }
+        }
+
+        stage('打包') {
+            steps {
+                dir('cpp_server') {
+                    sh 'cp build_jenkins/StockServer ./StockServer_linux'
+                }
+                echo '✅ 编译产物已打包'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '🎉 流水线全部通过！'
+        }
+        failure {
+            echo '❌ 构建失败，请检查日志'
+        }
+    }
+}
