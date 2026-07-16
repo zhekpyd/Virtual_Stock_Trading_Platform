@@ -85,7 +85,6 @@ int main() {
     .methods(crow::HTTPMethod::GET)([](const crow::request& req) {
         return predict_ctrl::get_predictions(req);
     });
-
     CROW_ROUTE(app, "/")([]() 
     {
         crow::response res("Hello, 服务器跑起来了！");
